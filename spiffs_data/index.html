@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HT C.O & AIoT</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="card">
+        <form>
+            <h1>HT C.O & AIoT</h1>
+            <h2>WIFI LOGIN</h2>
+            <div class="input-group">
+                <select name="ssid" id="ssid">
+                    <option value="none" disabled selected>--Select SSID--</option>
+                    <option value="other"">Type a SSID</option>
+                </select>
+                <button type="button" class="buton-scan">Scan</button>
+            </div>
+            <input type="text" placeholder="SSID" name="ssid-other" hidden>
+            <div class="input-group">
+                <input type="password" placeholder="Password" name="password">
+            </div>
+            <div class="input-group">
+                <button name="login-wifi" class="btn">Login</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h1>HT C.O & AIoT</h1>
+        <h2>GATEWAY REGISTER</h2>
+        <form>
+            <div class="input-group">
+            <input type="text" placeholder="Type a IPv4" name="ip-gateway">
+            <div class="input-group">
+                <button name="register-gateway" class="btn">Register</button>
+            </div>
+        </form>
+    </div>
+</body>
+    <!-- import app.js -->
+    <script src="app.js"></script>
+</html>

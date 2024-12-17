@@ -59,6 +59,9 @@ C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/mqtt/libmqtt.a
 C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/perfmon/libperfmon.a
 C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/spiffs/libspiffs.a
 C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/wifi_provisioning/libwifi_provisioning.a
+C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/espressif__esp_lcd_sh1107/libespressif__esp_lcd_sh1107.a
+C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/lvgl__lvgl/liblvgl__lvgl.a
+C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/espressif__esp_lvgl_port/libespressif__esp_lvgl_port.a
 C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/main/libmain.a
 C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/project_system_files/libproject_system_files.a
 C:/Users/TrongHuy/ProjectIDF/actuator_node_v1/build/esp-idf/dht11/libdht11.a

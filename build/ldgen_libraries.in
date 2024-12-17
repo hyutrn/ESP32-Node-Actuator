@@ -59,6 +59,9 @@ $<TARGET_FILE:__idf_mqtt>
 $<TARGET_FILE:__idf_perfmon>
 $<TARGET_FILE:__idf_spiffs>
 $<TARGET_FILE:__idf_wifi_provisioning>
+$<TARGET_FILE:__idf_espressif__esp_lcd_sh1107>
+$<TARGET_FILE:__idf_lvgl__lvgl>
+$<TARGET_FILE:__idf_espressif__esp_lvgl_port>
 $<TARGET_FILE:__idf_main>
 $<TARGET_FILE:__idf_project_system_files>
 $<TARGET_FILE:__idf_dht11>

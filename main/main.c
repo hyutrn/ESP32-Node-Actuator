@@ -12,6 +12,15 @@
 #include "lwip/err.h"
 #include "lwip/sys.h"
 
+#include "esp_timer.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
+#include "driver/i2c.h"
+#include "esp_err.h"
+#include "esp_log.h"
+#include "lvgl.h"
+#include "esp_lvgl_port.h"
+
 #include "wifi_pro.h"
 #include "server_cfg.h"
 #include "dht11.h"
@@ -20,17 +29,126 @@
 #include "mqtt_cfg.h" 
 #include "shared.h"
 
+#include "esp_lcd_sh1107.h"
+#include "esp_lcd_panel_vendor.h"
+static const char *TAG = "Actuator";
+#define I2C_HOST  0
+#define LCD_PIXEL_CLOCK_HZ    (400 * 1000)
+#define PIN_NUM_SDA           21
+#define PIN_NUM_SCL           22
+#define PIN_NUM_RST           -1
+#define I2C_HW_ADDR           0x3C
+// The pixel number in horizontal and vertical
+#define LCD_H_RES              128
+#define LCD_V_RES              64
+// Bit number used to represent command and parameter
+#define LCD_CMD_BITS           8
+#define LCD_PARAM_BITS         8
+
+static bool notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
+{
+    lv_disp_t * disp = (lv_disp_t *)user_ctx;
+    lvgl_port_flush_ready(disp);
+    return false;
+}
+QueueHandle_t oled_queue = NULL; // Queue để gửi dữ liệu hiển thị
+
+lv_disp_t *disp = NULL; // Biến hiển thị của LVGL
+
+typedef struct {
+    char line1[64]; // Nội dung hiển thị dòng 1
+    char line2[64]; // Nội dung hiển thị dòng 2
+} oled_msg_t;
+
+// Task hiển thị OLED với hiệu ứng chạy ngang
+void oled_task(void *arg) {
+    oled_msg_t msg;
+    while (1) {
+        // Chờ dữ liệu từ Queue
+        if (xQueueReceive(oled_queue, &msg, portMAX_DELAY) == pdTRUE) {
+            lv_obj_t *scr = lv_disp_get_scr_act(disp);
+            lv_obj_clean(scr); // Xóa nội dung cũ
+
+            // Tạo nhãn cho dòng 1
+            lv_obj_t *label1 = lv_label_create(scr);
+            lv_label_set_long_mode(label1, LV_LABEL_LONG_SCROLL_CIRCULAR); /* Circular scroll */
+            lv_label_set_text(label1, msg.line1);
+            lv_obj_set_width(label1, disp->driver->hor_res);
+            lv_obj_align(label1, LV_ALIGN_TOP_MID, 0, 0); // Căn giữa ở trên cùng
+
+            // Tạo nhãn cho dòng 2
+            lv_obj_t *label2 = lv_label_create(scr);
+            lv_label_set_long_mode(label2, LV_LABEL_LONG_SCROLL_CIRCULAR); /* Circular scroll */
+            lv_label_set_text(label2, msg.line2);
+            lv_obj_set_width(label2, disp->driver->hor_res);
+            lv_obj_align(label2, LV_ALIGN_LEFT_MID, 0, 0); // 
+
+            ESP_LOGI(TAG, "OLED displayed: %s | %s", msg.line1, msg.line2);
+        }
+    }
+}
+
+
+// Hàm khởi tạo OLED
+void oled_init() {
+    ESP_LOGI(TAG, "Initialize OLED");
+    i2c_config_t i2c_conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = PIN_NUM_SDA,
+        .scl_io_num = PIN_NUM_SCL,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = LCD_PIXEL_CLOCK_HZ,
+    };
+    ESP_ERROR_CHECK(i2c_param_config(I2C_HOST, &i2c_conf));
+    ESP_ERROR_CHECK(i2c_driver_install(I2C_HOST, I2C_MODE_MASTER, 0, 0, 0));
+
+    esp_lcd_panel_io_handle_t io_handle = NULL;
+    esp_lcd_panel_io_i2c_config_t io_config = {
+        .dev_addr = I2C_HW_ADDR,
+        .control_phase_bytes = 1,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+        .dc_bit_offset = 6,
+    };
+    ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c((esp_lcd_i2c_bus_handle_t)I2C_HOST, &io_config, &io_handle));
+
+    esp_lcd_panel_handle_t panel_handle = NULL;
+    esp_lcd_panel_dev_config_t panel_config = {
+        .bits_per_pixel = 1,
+        .reset_gpio_num = PIN_NUM_RST,
+    };
+    ESP_ERROR_CHECK(esp_lcd_new_panel_ssd1306(io_handle, &panel_config, &panel_handle));
+    ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle));
+    ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle));
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
+
+    lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_port_init(&lvgl_cfg);
+
+    lvgl_port_display_cfg_t disp_cfg = {
+        .io_handle = io_handle,
+        .panel_handle = panel_handle,
+        .buffer_size = LCD_H_RES * LCD_V_RES,
+        .double_buffer = true,
+        .hres = LCD_H_RES,
+        .vres = LCD_V_RES,
+        .monochrome = true,
+    };
+    disp = lvgl_port_add_disp(&disp_cfg);
+}
+
 // Khai báo chân GPIO cho các nút nhấn
-#define BUTTON_1 GPIO_NUM_16 //Reset button
-#define BUTTON_2 GPIO_NUM_17 //Restart button
-#define BUTTON_3 GPIO_NUM_18 //Motor 1
-#define BUTTON_4 GPIO_NUM_19 //Motor 2
-#define BUTTON_5 GPIO_NUM_20 //Motor 3 
+#define BUTTON_1 GPIO_NUM_12 //Reset button
+#define BUTTON_2 GPIO_NUM_13 //Restart button
+#define BUTTON_3 GPIO_NUM_14 //Motor 1
+#define BUTTON_4 GPIO_NUM_15 //Motor 2
+#define BUTTON_5 GPIO_NUM_16 //Motor 3 
 
 // Khai bao cac chan GPIO dieu khien relay
-#define MOTOR_1 GPIO_NUM_21
-#define MOTOR_2 GPIO_NUM_22
-#define MOTOR_3 GPIO_NUM_23
+#define MOTOR_1 GPIO_NUM_17
+#define MOTOR_2 GPIO_NUM_18
+#define MOTOR_3 GPIO_NUM_19
 
 // Semaphore cho từng nút nhấn
 SemaphoreHandle_t xSemaphoreButton1 = NULL;

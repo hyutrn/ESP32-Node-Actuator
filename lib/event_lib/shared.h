@@ -20,4 +20,9 @@ extern EventGroupHandle_t shared_event_group;
 // Hàm khởi tạo Event Group
 void shared_event_group_init(void);
 
+extern bool motor_1; 
+extern bool motor_2;
+extern bool motor_3;
+extern bool motor_4;
+
 #endif // SHARED_H

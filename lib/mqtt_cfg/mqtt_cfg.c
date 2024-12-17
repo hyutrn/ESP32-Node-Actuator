@@ -8,6 +8,10 @@ extern const uint8_t mqtt_cert_key_pem_start[]   asm("_binary_mqtt_cert_key_pem_
 extern const uint8_t mqtt_cert_key_pem_end[]   asm("_binary_mqtt_cert_key_pem_end");
 
 esp_mqtt_client_handle_t client = NULL;
+bool motor_1 = 0;
+bool motor_2 = 0;
+bool motor_3 = 0;
+bool motor_4 = 0;
 
 esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
 {
@@ -43,8 +47,10 @@ esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event)
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI("MQTTWSS", "MQTT_EVENT_DATA");
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
+        //printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+        //printf("DATA=%.*s\r\n", event->data_len, event->data);
+        // Gọi hàm updateMotorStatus
+        updateMotorStatus(client, event->topic, event->data, event->data_len);
         break;
     case MQTT_EVENT_ERROR:
         ESP_LOGI("MQTTWSS", "MQTT_EVENT_ERROR");
@@ -64,19 +70,54 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 }
 
 void dataSend(esp_mqtt_client_handle_t client){
-        //Publish to MQTT Broker
-    // Tạo JSON để publish
-    char json_data[128];
-    //snprintf(json_data, sizeof(json_data),
-    //         "{\"temperature\": %.2f, \"moisture\": %d, \"light\": %d}",
-    //         temperature, moisture, light);
+    //Publish status 4 buttons to MQTT Broker
+    // Tạo JSON chứa trạng thái 4 nút nhấn
+    cJSON *status_json = cJSON_CreateObject();
+    cJSON_AddBoolToObject(status_json, "motor_1", motor_1);
+    cJSON_AddBoolToObject(status_json, "motor_2", motor_2);
+    cJSON_AddBoolToObject(status_json, "motor_3", motor_3);
+    cJSON_AddBoolToObject(status_json, "motor_4", motor_4);
 
-    // Publish dữ liệu tới broker
-    int msg_id = esp_mqtt_client_publish(client, "/sensor/data", "Hello", 0, 1, 0);
-    if (msg_id != -1) {
-        ESP_LOGI("MQTTWSS", "Data published successfully, msg_id=%d", msg_id);
-    } else {
-        ESP_LOGE("MQTTWSS", "Failed to publish data");
+    // Chuyển đổi JSON thành chuỗi
+    char *status_str = cJSON_PrintUnformatted(status_json);
+
+    // Gửi dữ liệu JSON lên topic "actuator/status/"
+    esp_mqtt_client_publish(client, "actuator/status/", status_str, 0, 1, 0);
+
+    ESP_LOGI("MQTTWSS", "Published: %s", status_str);
+
+    // Giải phóng bộ nhớ JSON
+    cJSON_Delete(status_json);
+    free(status_str);
+}
+
+void updateMotorStatus(esp_mqtt_client_handle_t client, const char *topic, const char *data, int data_len) {
+    // Kiểm tra topic để đảm bảo đúng topic "actuator/control/"
+    if (strncmp(topic, "actuator/control/", strlen("actuator/control/")) == 0) {
+        // Parse dữ liệu JSON từ MQTT payload
+        char *payload = strndup(data, data_len); // Tạo chuỗi từ payload
+        cJSON *json = cJSON_Parse(payload);
+
+        if (json != NULL) {
+            // Cập nhật trạng thái motor nếu key tồn tại
+            cJSON *motor_1_json = cJSON_GetObjectItem(json, "motor_1");
+            cJSON *motor_2_json = cJSON_GetObjectItem(json, "motor_2");
+            cJSON *motor_3_json = cJSON_GetObjectItem(json, "motor_3");
+            cJSON *motor_4_json = cJSON_GetObjectItem(json, "motor_4");
+
+            if (cJSON_IsBool(motor_1_json)) motor_1 = cJSON_IsTrue(motor_1_json);
+            if (cJSON_IsBool(motor_2_json)) motor_2 = cJSON_IsTrue(motor_2_json);
+            if (cJSON_IsBool(motor_3_json)) motor_3 = cJSON_IsTrue(motor_3_json);
+            if (cJSON_IsBool(motor_4_json)) motor_4 = cJSON_IsTrue(motor_4_json);
+
+            ESP_LOGI("MQTTWSS", "Updated motor statuses: motor_1=%d, motor_2=%d, motor_3=%d, motor_4=%d", motor_1, motor_2, motor_3, motor_4);
+        } else {
+            ESP_LOGE("MQTTWSS", "Failed to parse JSON payload");
+        }
+
+        // Giải phóng bộ nhớ
+        cJSON_Delete(json);
+        free(payload);
     }
 }
 
@@ -100,6 +141,7 @@ void mqtt_app_start(void)
 }
 */
 
+/*
 void mqtt_app_start(void)
 {
     const esp_mqtt_client_config_t mqtt_cfg = {
@@ -114,3 +156,24 @@ void mqtt_app_start(void)
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
     esp_mqtt_client_start(client);
 }
+*/
+
+void mqtt_app_start(void)
+{
+    const esp_mqtt_client_config_t mqtt_cfg = {
+        .broker.address.uri = "mqtt://mqtt.flespi.io",
+        .broker.address.hostname = "mqtt://mqtt.flespi.io",
+        .broker.address.port = 1883,
+        .credentials.username = "ejkH5zHIZGRWVmg8cjgSKuDeWZoNhhgzrRl6BsOixEEEIgJ6bauQbQYGcPs5vyUd",
+        .credentials.client_id = "NODE SENSOR",
+        .credentials.authentication.password = NULL,
+        .session.keepalive = 90
+    };
+
+
+    ESP_LOGI("MQTTWSS", "[APP] Free memory: %" PRIu32 " bytes", esp_get_free_heap_size());
+    client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    esp_mqtt_client_start(client);
+}
+
